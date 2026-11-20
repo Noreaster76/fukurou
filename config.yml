@@ -1,0 +1,51 @@
+mqtt:
+  enabled: false
+
+# go2rtc pulls each camera stream once and re-serves it locally on :8554, so
+# Frigate's record and detect roles don't each open a separate connection to
+# the camera.
+#
+# The camera password is injected from the FRIGATE_OWL_BOX_PASSWORD environment
+# variable (see .env / .env.example) so it is never committed. It must be
+# URL-encoded because it lives inside an RTSP URL (e.g. $ -> %24, ! -> %21).
+#
+# #backchannel=0 disables go2rtc's two-way-audio negotiation, which this
+# Xiongmai ("Green Backyard") firmware mishandles -- without it the camera
+# drops the RTSP session every couple of minutes (EOF) and recording churns.
+go2rtc:
+  streams:
+    owl_box_main:
+      - rtsp://admin:{FRIGATE_OWL_BOX_PASSWORD}@<camera-ip>:554/user=admin&password=&channel=1&stream=0.sdp?real_stream#backchannel=0
+    owl_box_sub:
+      - rtsp://admin:{FRIGATE_OWL_BOX_PASSWORD}@<camera-ip>:554/user=admin&password=&channel=1&stream=1.sdp?real_stream#backchannel=0
+
+cameras:
+  owl_box:
+    ffmpeg:
+      inputs:
+        # Record the full 1080p H.265 stream by copy (no re-encode).
+        - path: rtsp://127.0.0.1:8554/owl_box_main
+          input_args: preset-rtsp-restream
+          roles:
+            - record
+        # Low-res sub-stream reserved for detection. Detection is off for now
+        # (see detect.enabled below); the role stays wired so turning it on is
+        # a one-line change.
+        - path: rtsp://127.0.0.1:8554/owl_box_sub
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+    detect:
+      enabled: false
+      width: 800
+      height: 448
+    record:
+      enabled: true
+      continuous:
+        days: 1
+      motion:
+        days: 0
+    snapshots:
+      enabled: true
+
+version: 0.18-0

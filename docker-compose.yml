@@ -1,0 +1,22 @@
+services:
+  frigate:
+    container_name: frigate-nest-box
+    # Pinned to the version this config was validated against. Bump deliberately
+    # (or use ":stable") and re-check the logs after upgrading.
+    image: ghcr.io/blakeblackshear/frigate:0.18.3
+    restart: unless-stopped
+    shm_size: "128mb"
+    environment:
+      # Supplied from .env (gitignored). Compose errors out if it is unset.
+      FRIGATE_OWL_BOX_PASSWORD: ${FRIGATE_OWL_BOX_PASSWORD:?set FRIGATE_OWL_BOX_PASSWORD in .env}
+    volumes:
+      - ./config.yml:/config/config.yml:ro
+      - ./storage:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    ports:
+      - "5000:5000"   # unauthenticated UI (local use)
+      - "8971:8971"   # authenticated UI
+      - "8554:8554"   # go2rtc RTSP restream

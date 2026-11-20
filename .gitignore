@@ -1,0 +1,8 @@
+# Frigate runtime data (recordings, snapshots, db, model cache)
+storage/
+
+# Secrets
+.env
+
+# macOS
+.DS_Store
