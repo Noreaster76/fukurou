@@ -1,4 +1,6 @@
-# Nest-box camera → Frigate
+# fukurō — nest-box camera → Frigate
+
+*fukurō is Japanese for "owl."*
 
 Self-hosted, open-source viewing and recording for a **"Green Backyard"**
 nest-box camera (an owl box), replacing the stock Green Backyard app.
@@ -88,3 +90,7 @@ by copy. Open design questions to settle first:
 
 - Pull **stored clips and stills** off the camera over the XM DVRIP protocol
   (`:34567`), outside the Green Backyard app — a separate effort.
+
+## License
+
+[MIT](LICENSE) © 2026 Gabe Heafitz
