@@ -5,7 +5,8 @@ services:
     # (or use ":stable") and re-check the logs after upgrading.
     image: ghcr.io/blakeblackshear/frigate:0.18.3
     restart: unless-stopped
-    shm_size: "128mb"
+    # Frigate 0.18 wants >=130MB for one 1080p camera; 256MB leaves headroom.
+    shm_size: "256mb"
     environment:
       # Supplied from .env (gitignored). Compose errors out if it is unset.
       FRIGATE_OWL_BOX_HOST: ${FRIGATE_OWL_BOX_HOST:?set FRIGATE_OWL_BOX_HOST in .env}
