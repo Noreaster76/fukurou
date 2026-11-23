@@ -17,11 +17,10 @@ camera** with a self-hosted, open-source **Frigate** NVR.
 
 - Rebranded **Xiongmai ("XM") Sofia firmware**; its RTSP server identifies as
   `H264DVR`. Sold under the brand "Green Backyard."
-- Was at `<camera-ip>`. Its single NIC had also
-  grabbed a second DHCP lease — same physical camera. **On a new
-  network the IP will differ**: scan the LAN for a device with ports `554`
-  (rtsp) + `34567` open, with RTSP reporting `H264DVR`, then update the IP in
-  `config.yml`.
+- Gets its IP from DHCP; its single NIC has been seen holding two leases at
+  once (same physical camera). **On a new network the IP will differ**: scan
+  the LAN for a device with ports `554` (rtsp) + `34567` open, with RTSP
+  reporting `H264DVR`, then set `FRIGATE_OWL_BOX_HOST` in `.env`.
 - Ports: RTSP `554`, ONVIF `8899`, XM "DVRIP" `34567`, HTTP `80`.
 - Auth: RTSP digest, user `admin`, password set in the Green Backyard app.
 - Main stream: 1920×1080 **HEVC/H.265**, 25 fps, PCM A-law audio.
@@ -38,8 +37,9 @@ camera** with a self-hosted, open-source **Frigate** NVR.
 
 - Frigate via `docker compose`: go2rtc restream → Frigate recording. Object
   detection is wired to the sub stream but **disabled** for now.
-- Camera password injected via the `FRIGATE_OWL_BOX_PASSWORD` env var (Frigate's
-  `{FRIGATE_*}` substitution), kept out of git in `.env`.
+- Camera IP and password injected via the `FRIGATE_OWL_BOX_HOST` and
+  `FRIGATE_OWL_BOX_PASSWORD` env vars (Frigate's `{FRIGATE_*}` substitution),
+  kept out of git in `.env`.
 
 ## Recreate the secret first
 
@@ -47,6 +47,7 @@ camera** with a self-hosted, open-source **Frigate** NVR.
 next to `docker-compose.yml`:
 
 ```
+FRIGATE_OWL_BOX_HOST=<camera IP on this LAN>
 FRIGATE_OWL_BOX_PASSWORD=<camera admin password, URL-encoded>
 ```
 
@@ -70,16 +71,24 @@ See `.env.example` for the format. (The value is in my password manager.)
   Pi 5** (+ USB SSD for recordings, optional USB Coral TPU for detection). One
   camera is a light load — especially detecting on the sub stream and recording
   the main stream by copy.
-- **Open design questions:** continuous vs. motion/event recording and
-  retention length; whether to run bird/owl object detection (Coral vs. CPU);
-  adding an H.264 transcode for universal browser playback; persisting Frigate's
-  `/config` (the trial kept its DB ephemeral); a DHCP reservation so the camera
-  keeps one fixed IP.
+- **Design decisions so far:**
+  - **Recording:** motion/event-only, not continuous.
+  - **Detection:** start on the Pi's CPU, detecting **birds** (not raw motion —
+    the stock app's light-change false positives are the main annoyance). Add a
+    Coral or other accelerator later and iterate. Telling owls from starlings
+    (and other animals) is deferred.
+  - **Retention:** a fixed storage budget (N GB), oldest-first eviction, with the
+    ability to pin clips/stills so they are never deleted.
+  - **Persist `/config`** (the trial keeps Frigate's DB ephemeral).
+  - **DHCP reservation** for the camera.
+  - **H.264 transcode** for Chrome/Firefox playback: lowest priority; Safari is
+    fine for now.
+  - Pi specs still to be gathered.
 
 ## To get running on the new machine
 
 1. Install Docker.
 2. Create `.env` (above).
-3. Confirm/adjust the camera IP in `config.yml` (it may differ on this network).
+3. Confirm/adjust the camera IP in `.env` (it may differ on this network).
 4. `docker compose up -d`, then open <http://localhost:5000>.
 5. Then let's design the Raspberry Pi deployment.

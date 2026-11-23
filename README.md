@@ -1,4 +1,4 @@
-# fukurō — nest-box camera → Frigate
+# 🦉 fukurō — nest-box camera → Frigate
 
 *fukurō is Japanese for "owl."*
 
@@ -13,7 +13,7 @@ it directly — no cloud/app dependency.
 
 | | |
 |---|---|
-| IP | `<camera-ip>` (see DHCP note below) |
+| IP | Assigned by DHCP; set `FRIGATE_OWL_BOX_HOST` in `.env` (see DHCP note below) |
 | Protocols | RTSP `:554`, ONVIF `:8899`, XM "DVRIP" `:34567`, HTTP `:80` |
 | Auth | RTSP digest, user `admin`, password set via the Green Backyard app |
 | Main stream | 1920×1080, **HEVC/H.265**, 25 fps, PCM A-law audio |
@@ -40,9 +40,9 @@ rtsp://admin:<pw>@<camera-ip>:554/user=admin&password=&channel=1&stream=0.sdp?re
 
 ### DHCP note
 
-The camera's single NIC currently holds **two** DHCP
-leases. Add a **DHCP reservation** on the TP-Link Deco so it
-stays on one fixed IP, then this config never needs an IP edit.
+The camera's single NIC has been seen holding **two** DHCP leases at once. Add
+a **DHCP reservation** on the TP-Link Deco so it stays on one fixed IP, then
+`.env` never needs an IP edit.
 
 ## Running (local trial on macOS + Docker Desktop)
 
@@ -52,7 +52,7 @@ stays on one fixed IP, then this config never needs an IP edit.
 > Raspberry Pi 5 — see below.
 
 ```sh
-cp .env.example .env        # then put the real URL-encoded password in .env
+cp .env.example .env        # then set the camera IP and URL-encoded password
 docker compose up -d
 ```
 
@@ -66,9 +66,9 @@ Recordings land in `./storage` (gitignored). Retention is **1 day** continuous
 
 ## Configuration notes
 
-- **Secret handling:** the password is injected from `FRIGATE_OWL_BOX_PASSWORD`
-  (in gitignored `.env`) via Frigate's `{FRIGATE_*}` substitution. Nothing
-  secret is committed.
+- **Secret handling:** the camera IP and password are injected from
+  `FRIGATE_OWL_BOX_HOST` and `FRIGATE_OWL_BOX_PASSWORD` (in gitignored `.env`)
+  via Frigate's `{FRIGATE_*}` substitution. Neither is committed.
 - **Detection is off** (`detect.enabled: false`) — the trial proves live view +
   recording first. The detect role is already wired to the sub stream, so
   enabling object detection is a one-line change.
@@ -78,13 +78,20 @@ Recordings land in `./storage` (gitignored). Retention is **1 day** continuous
 
 Target: **Raspberry Pi 5 + USB SSD + (optional) USB Coral TPU**. One camera is a
 light load, especially detecting on the sub stream and recording the main stream
-by copy. Open design questions to settle first:
+by copy. Decisions so far:
 
-- Continuous vs. motion/event-only recording, and retention length.
-- Object detection (bird/owl) — worth a Coral, or skip detection?
-- Add an H.264 transcode for universal browser playback?
-- DHCP reservation for the camera.
-- Persist `/config` (this trial keeps Frigate's DB ephemeral).
+- **Recording:** motion/event-only, not continuous.
+- **Detection:** start on the Pi's CPU, detecting **birds** (not raw motion —
+  the stock app's light-change false positives are the main annoyance). Add a
+  Coral or other accelerator later and iterate. Telling owls from starlings
+  (and other animals) is deferred.
+- **Retention:** a fixed storage budget (N GB), oldest-first eviction, with the
+  ability to pin clips/stills so they are never deleted.
+- **Persist `/config`** (the trial keeps Frigate's DB ephemeral).
+- **DHCP reservation** for the camera.
+- **H.264 transcode** for Chrome/Firefox playback: lowest priority; Safari is
+  fine for now.
+- Pi specs still to be gathered.
 
 ## Future work
 

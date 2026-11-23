@@ -5,9 +5,10 @@ mqtt:
 # Frigate's record and detect roles don't each open a separate connection to
 # the camera.
 #
-# The camera password is injected from the FRIGATE_OWL_BOX_PASSWORD environment
-# variable (see .env / .env.example) so it is never committed. It must be
-# URL-encoded because it lives inside an RTSP URL (e.g. $ -> %24, ! -> %21).
+# The camera's IP and password are injected from the FRIGATE_OWL_BOX_HOST and
+# FRIGATE_OWL_BOX_PASSWORD environment variables (see .env / .env.example) so
+# neither is committed. The password must be URL-encoded because it lives
+# inside an RTSP URL (e.g. $ -> %24, ! -> %21).
 #
 # #backchannel=0 disables go2rtc's two-way-audio negotiation, which this
 # Xiongmai ("Green Backyard") firmware mishandles -- without it the camera
@@ -15,9 +16,9 @@ mqtt:
 go2rtc:
   streams:
     owl_box_main:
-      - rtsp://admin:{FRIGATE_OWL_BOX_PASSWORD}@<camera-ip>:554/user=admin&password=&channel=1&stream=0.sdp?real_stream#backchannel=0
+      - rtsp://admin:{FRIGATE_OWL_BOX_PASSWORD}@{FRIGATE_OWL_BOX_HOST}:554/user=admin&password=&channel=1&stream=0.sdp?real_stream#backchannel=0
     owl_box_sub:
-      - rtsp://admin:{FRIGATE_OWL_BOX_PASSWORD}@<camera-ip>:554/user=admin&password=&channel=1&stream=1.sdp?real_stream#backchannel=0
+      - rtsp://admin:{FRIGATE_OWL_BOX_PASSWORD}@{FRIGATE_OWL_BOX_HOST}:554/user=admin&password=&channel=1&stream=1.sdp?real_stream#backchannel=0
 
 cameras:
   owl_box:

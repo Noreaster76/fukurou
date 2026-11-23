@@ -8,6 +8,7 @@ services:
     shm_size: "128mb"
     environment:
       # Supplied from .env (gitignored). Compose errors out if it is unset.
+      FRIGATE_OWL_BOX_HOST: ${FRIGATE_OWL_BOX_HOST:?set FRIGATE_OWL_BOX_HOST in .env}
       FRIGATE_OWL_BOX_PASSWORD: ${FRIGATE_OWL_BOX_PASSWORD:?set FRIGATE_OWL_BOX_PASSWORD in .env}
     volumes:
       - ./config.yml:/config/config.yml:ro
