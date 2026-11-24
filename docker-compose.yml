@@ -12,13 +12,17 @@ services:
       FRIGATE_OWL_BOX_HOST: ${FRIGATE_OWL_BOX_HOST:?set FRIGATE_OWL_BOX_HOST in .env}
       FRIGATE_OWL_BOX_PASSWORD: ${FRIGATE_OWL_BOX_PASSWORD:?set FRIGATE_OWL_BOX_PASSWORD in .env}
     volumes:
-      - ./config.yml:/config/config.yml:ro
+      # Whole directory, writable: Frigate keeps its database, model cache and
+      # config migrations here, so they survive container restarts.
+      - ./config:/config
       - ./storage:/media/frigate
       - type: tmpfs
         target: /tmp/cache
         tmpfs:
           size: 1000000000
     ports:
-      - "5000:5000"   # unauthenticated UI (local use)
-      - "8971:8971"   # authenticated UI
-      - "8554:8554"   # go2rtc RTSP restream
+      # Unauthenticated UI: reachable only from this machine (or an SSH tunnel).
+      - "127.0.0.1:5000:5000"
+      # Authenticated UI: the one to use from other devices on the LAN.
+      - "8971:8971"
+      # go2rtc's RTSP restream (:8554) is internal to the container; not published.

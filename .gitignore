@@ -1,6 +1,10 @@
 # Frigate runtime data (recordings, snapshots, db, model cache)
 storage/
 
+# Frigate's writable /config: keep only config.yml in git
+config/*
+!config/config.yml
+
 # Secrets
 .env
 

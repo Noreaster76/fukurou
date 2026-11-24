@@ -68,7 +68,7 @@ docker compose up -d
 - Logs: `docker logs -f frigate-nest-box`
 
 Recordings land in `./storage` (gitignored). Retention is **1 day** continuous
-(~6 GB/day at 1080p); adjust `record` in `config.yml`.
+(~6 GB/day at 1080p); adjust `record` in `config/config.yml`.
 
 ## Configuration notes
 

@@ -24,7 +24,7 @@ cameras:
   owl_box:
     ffmpeg:
       inputs:
-        # Record the full 1080p H.265 stream by copy (no re-encode).
+        # Record the full 1080p H.264 stream by copy (no re-encode).
         - path: rtsp://127.0.0.1:8554/owl_box_main
           input_args: preset-rtsp-restream
           roles:

@@ -4,7 +4,7 @@ Paste the essentials of this file (or just point the new session at it) to pick
 up the project on another machine. If you resumed the copied Claude Code session
 you already have this context — this file is the standalone fallback.
 
-**First actions for a fresh session:** read `README.md`, `config.yml`, and
+**First actions for a fresh session:** read `README.md`, `config/config.yml`, and
 `docker-compose.yml` in this directory, then help continue from "Where I left
 off" below.
 
