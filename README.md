@@ -62,8 +62,9 @@ cp .env.example .env        # then set the camera IP and URL-encoded password
 docker compose up -d
 ```
 
-- UI: <http://localhost:5000> (unauthenticated, local). Authenticated UI is on
-  `:8971`.
+- UI: <http://localhost:5000> — unauthenticated, bound to localhost only.
+  From other devices use the authenticated UI on `https://<host>:8971`; the
+  first-start admin password is printed in `docker logs frigate-nest-box`.
 - Stop: `docker compose down`
 - Logs: `docker logs -f frigate-nest-box`
 
@@ -93,7 +94,7 @@ by copy. Decisions so far:
   (and other animals) is deferred.
 - **Retention:** a fixed storage budget (N GB), oldest-first eviction, with the
   ability to pin clips/stills so they are never deleted.
-- **Persist `/config`** (the trial keeps Frigate's DB ephemeral).
+- **Persist `/config`:** done — `./config` is mounted writable.
 - **DHCP reservation** for the camera.
 - **Browser playback:** solved at the source (camera now sends H.264).
 - **Pi:** Raspberry Pi 5, 16 GB RAM, Raspberry Pi OS (Debian 13); recordings

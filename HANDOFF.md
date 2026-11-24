@@ -85,7 +85,7 @@ See `.env.example` for the format. (The value is in my password manager.)
     (and other animals) is deferred.
   - **Retention:** a fixed storage budget (N GB), oldest-first eviction, with the
     ability to pin clips/stills so they are never deleted.
-  - **Persist `/config`** (the trial keeps Frigate's DB ephemeral).
+  - **Persist `/config`:** done — `./config` is mounted writable.
   - **DHCP reservation** for the camera.
   - **Browser playback:** solved at the source (camera now sends H.264).
   - **Pi:** Raspberry Pi 5, 16 GB RAM, Raspberry Pi OS (Debian 13). Hardened:
