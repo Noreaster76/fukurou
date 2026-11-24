@@ -16,8 +16,9 @@ it directly — no cloud/app dependency.
 | IP | Assigned by DHCP; set `FRIGATE_OWL_BOX_HOST` in `.env` (see DHCP note below) |
 | Protocols | RTSP `:554`, ONVIF `:8899`, XM "DVRIP" `:34567`, HTTP `:80` |
 | Auth | RTSP digest, user `admin`, password set via the Green Backyard app |
-| Main stream | 1920×1080, **HEVC/H.265**, 25 fps, PCM A-law audio |
-| Sub stream | 800×448, HEVC |
+| Main stream | 1920×1080, **H.264**, 8 fps, PCM A-law audio |
+| Sub stream | 800×448, H.264, 20 fps |
+| Hardware | Goke GK7205V200 SoC, firmware `V5.00.R02.263739N7.10010.140d17` |
 
 **RTSP URL shape** (password URL-encoded):
 
@@ -27,16 +28,21 @@ rtsp://admin:<pw>@<camera-ip>:554/user=admin&password=&channel=1&stream=0.sdp?re
 
 `stream=0` is the main feed, `stream=1` the sub feed.
 
-### Two gotchas, both handled in config
+### Gotchas
 
 - **Backchannel / EOF churn.** go2rtc's two-way-audio negotiation makes this
   firmware drop the RTSP session every few minutes. `#backchannel=0` on each
   go2rtc source fixes it. (Diagnosed from `error=EOF` → restream `404` →
   ffmpeg watchdog restarts.)
-- **HEVC in the browser.** Recordings are H.265. On a Mac, **use Safari** for
-  smooth recording playback; Chrome/Firefox can stutter. Live view falls back
-  to Frigate's low-res player because browsers can't play H.265 live directly.
-  A future H.264 transcode (via go2rtc) would make playback universal.
+- **Codec: switched to H.264 on the camera itself.** It shipped sending H.265,
+  which only Safari plays smoothly. The camera's ONVIF Media2 service offers
+  H.264 too, so on 2026-11-23 the encoder was switched via
+  `SetVideoEncoderConfiguration` (one setting applies to both streams) — no
+  transcoding needed, and recordings play in any browser. If the camera is ever
+  factory-reset or reconfigured by the Green Backyard app, re-check this.
+- **Unstable camera.** It reboots on its own every few minutes to hours
+  (all ports close, ping stays up, clock loses the downtime). Under
+  investigation — see HANDOFF.md.
 
 ### DHCP note
 
@@ -47,7 +53,7 @@ a **DHCP reservation** on the TP-Link Deco so it stays on one fixed IP, then
 ## Running (local trial on macOS + Docker Desktop)
 
 > ⚠️ This is a **trial** deployment on a laptop. A laptop sleeps/moves, and on
-> macOS Docker has no GPU access, so H.265 is decoded on CPU (fine for one
+> macOS Docker has no GPU access, so video is decoded on CPU (fine for one
 > camera on this M4, not the long-term home). Intended permanent host: a
 > Raspberry Pi 5 — see below.
 
@@ -89,9 +95,9 @@ by copy. Decisions so far:
   ability to pin clips/stills so they are never deleted.
 - **Persist `/config`** (the trial keeps Frigate's DB ephemeral).
 - **DHCP reservation** for the camera.
-- **H.264 transcode** for Chrome/Firefox playback: lowest priority; Safari is
-  fine for now.
-- Pi specs still to be gathered.
+- **Browser playback:** solved at the source (camera now sends H.264).
+- **Pi:** Raspberry Pi 5, 16 GB RAM, Raspberry Pi OS (Debian 13); recordings
+  on a USB drive or NVMe SSD rather than the SD card; wired Ethernet.
 
 ## Future work
 
