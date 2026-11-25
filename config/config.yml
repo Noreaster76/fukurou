@@ -8,17 +8,23 @@ mqtt:
 # The camera's IP and password are injected from the FRIGATE_OWL_BOX_HOST and
 # FRIGATE_OWL_BOX_PASSWORD environment variables (see .env / .env.example) so
 # neither is committed. The password must be URL-encoded because it lives
-# inside an RTSP URL (e.g. $ -> %24, ! -> %21).
+# inside a URL (e.g. $ -> %24, ! -> %21).
 #
-# #backchannel=0 disables go2rtc's two-way-audio negotiation, which this
-# Xiongmai ("Green Backyard") firmware mishandles -- without it the camera
-# drops the RTSP session every couple of minutes (EOF) and recording churns.
+# Streams come over the camera's native Xiongmai DVRIP protocol (:34567), not
+# RTSP. This firmware's RTSP server crashes the camera's main process under
+# load (every 4-10 min with both streams; ~25 min with just the sub stream),
+# whereas DVRIP ran for hours between crashes in testing. subtype=0 is the
+# 1080p main stream, subtype=1 the 800x448 sub stream.
+#
+# RTSP fallback, if ever needed (keep #backchannel=0, which stops go2rtc's
+# two-way-audio negotiation that this firmware mishandles):
+#   rtsp://admin:{FRIGATE_OWL_BOX_PASSWORD}@{FRIGATE_OWL_BOX_HOST}:554/user=admin&password=&channel=1&stream=0.sdp?real_stream#backchannel=0
 go2rtc:
   streams:
     owl_box_main:
-      - rtsp://admin:{FRIGATE_OWL_BOX_PASSWORD}@{FRIGATE_OWL_BOX_HOST}:554/user=admin&password=&channel=1&stream=0.sdp?real_stream#backchannel=0
+      - dvrip://admin:{FRIGATE_OWL_BOX_PASSWORD}@{FRIGATE_OWL_BOX_HOST}:34567?channel=0&subtype=0
     owl_box_sub:
-      - rtsp://admin:{FRIGATE_OWL_BOX_PASSWORD}@{FRIGATE_OWL_BOX_HOST}:554/user=admin&password=&channel=1&stream=1.sdp?real_stream#backchannel=0
+      - dvrip://admin:{FRIGATE_OWL_BOX_PASSWORD}@{FRIGATE_OWL_BOX_HOST}:34567?channel=0&subtype=1
 
 cameras:
   owl_box:

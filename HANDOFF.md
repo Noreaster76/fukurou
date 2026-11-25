@@ -56,17 +56,23 @@ See `.env.example` for the format. (The value is in my password manager.)
 
 ## Hard-won gotchas
 
-1. **go2rtc sources need `#backchannel=0`.** Without it this XM firmware drops
-   the RTSP session every few minutes (`error=EOF` → restream `404` → ffmpeg
-   crash-loop). This took real debugging; don't remove it.
+1. **Stream over DVRIP, not RTSP.** The camera's RTSP server crashes its main
+   process under load. Measured on 2026-11-23/24 (Pi's `~/camwatch` log):
+   RTSP both streams → crash every 4–10 min; RTSP sub only → crash after
+   25 min; no client at all → one 22 s blip in 14 h; DVRIP sub only → one
+   crash, then 9 h clean; DVRIP both streams → crash at 60 min, then 1 h 21 min+
+   clean. A crash closes all ports for ~2 min while ping keeps answering;
+   Frigate recovers on its own. If RTSP is ever used again it needs
+   `#backchannel=0` (otherwise the session drops every few minutes).
 2. **The camera shipped sending H.265** (Safari-only playback). It was switched
    to H.264 on the camera via ONVIF Media2 `SetVideoEncoderConfiguration`. A
    factory reset or the Green Backyard app could switch it back — re-check.
-3. **The camera reboots itself** every few minutes to hours (all ports close,
-   ping keeps answering, clock loses the downtime). Power is 120 V AC over a
-   100–200 ft extension cord; Wi-Fi is via a repeater ~50–60 ft away. An
-   overnight test with nothing connected to it is logging to
-   `~/camwatch/camwatch.log` on the Pi.
+3. **The camera may not rejoin Wi-Fi by itself** after its repeater restarts
+   (2026-11-24: offline 38 min until power-cycled). Power is 120 V AC over a
+   100–200 ft extension cord into a GFCI outlet, with the camera's adapter at
+   the box; Wi-Fi is via one of several repeaters ~50–60 ft away. Remaining
+   occasional crashes might drop further once the camera is cut off from the
+   internet (it may be retrying its vendor cloud) — untested.
 
 ## Where I left off / what's next
 

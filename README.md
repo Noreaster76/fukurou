@@ -30,19 +30,21 @@ rtsp://admin:<pw>@<camera-ip>:554/user=admin&password=&channel=1&stream=0.sdp?re
 
 ### Gotchas
 
-- **Backchannel / EOF churn.** go2rtc's two-way-audio negotiation makes this
-  firmware drop the RTSP session every few minutes. `#backchannel=0` on each
-  go2rtc source fixes it. (Diagnosed from `error=EOF` → restream `404` →
-  ffmpeg watchdog restarts.)
+- **Use DVRIP, not RTSP.** The camera's RTSP server crashes its main process
+  under load: with both streams over RTSP it went down every 4–10 minutes.
+  Over the native XM DVRIP protocol (`dvrip://…:34567`, which go2rtc speaks
+  natively) it ran for hours between crashes in testing. Each crash costs
+  ~2 minutes (ports close, ping keeps answering) and Frigate reconnects on its
+  own. If RTSP is ever needed again, keep `#backchannel=0` on the go2rtc
+  source — without it this firmware drops the RTSP session every few minutes.
 - **Codec: switched to H.264 on the camera itself.** It shipped sending H.265,
   which only Safari plays smoothly. The camera's ONVIF Media2 service offers
   H.264 too, so on 2026-11-23 the encoder was switched via
   `SetVideoEncoderConfiguration` (one setting applies to both streams) — no
   transcoding needed, and recordings play in any browser. If the camera is ever
   factory-reset or reconfigured by the Green Backyard app, re-check this.
-- **Unstable camera.** It reboots on its own every few minutes to hours
-  (all ports close, ping stays up, clock loses the downtime). Under
-  investigation — see HANDOFF.md.
+- **The camera may not rejoin Wi-Fi on its own** after its access point
+  restarts (seen once: offline until power-cycled).
 
 ### DHCP note
 
