@@ -1,6 +1,6 @@
 # fukurō — system design
 
-Status: **draft for discussion** (2026-11-25; revised 2026-11-26). Nothing in the cloud half is
+Status: **draft for discussion** (2026-11-25; revised 2026-11-26, stack decided 2026-11-27). Nothing in the cloud half is
 built yet. Decisions already made are marked ✅; open ones are collected in
 [Open questions](#open-questions).
 
@@ -75,15 +75,15 @@ commands.
 |---|---|---|
 | Camera | nest box | Streams H.264 video over DVRIP. Isolated from the internet. |
 | Frigate | Pi (Docker) | Ingests the camera via go2rtc, detects `bird` on the sub stream, records the main stream on activity to the USB drive. LAN-only UI. |
-| relay | Pi (Docker) | Small service (same language as the web app). Polls Frigate's API for finished activity, uploads clip + still to R2 via presigned URLs, reports the event to the cloud app, serves live view on demand. |
-| Web app | Heroku (1 Basic dyno) | Portal, auth, admin, device API + relay WebSocket, alert sending, retention job. Stack: see §2.1. |
-| Database | Heroku Postgres Essential-0 | Users, cameras, events, share links, alert state. |
+| relay | Pi (Docker) | Small Rust service. Polls Frigate's API, groups activity into visits, uploads arrival/departure clips and stills to R2 via presigned URLs, reports them to the cloud app, serves live view on demand. |
+| Web app | Heroku (1 Basic dyno) | Portal, auth, admin, device API + relay WebSocket, alert sending, retention job. Rust (Axum) + SvelteKit; see §2.1. |
+| Database | Heroku Postgres Essential-0 | Users, cameras, visits, media, share links, alert state. |
 | Object storage | Cloudflare R2 | Clips, stills, live-view segments. Private bucket; access only via signed URLs. |
 | Email | free-tier transactional email service | Invites, sign-in codes, alert emails. |
 
 ### Why these choices
 
-- **Web stack** — undecided: Rust (Axum) vs. Python (Django); see §2.1.
+- **Rust (Axum) + SvelteKit** ✅ — see §2.1.
 - **R2, not Heroku, for media** — Heroku's filesystem is wiped on every restart
   and requests time out at 30 s, so video never passes through the app. R2 has
   **no download (egress) fees**, which matters for video, and 10 GB of storage
@@ -98,18 +98,32 @@ commands.
   natural choice on a host with persistent disks; on Heroku, Postgres
   Essential-0 ($5) is the simplest durable option.
 
-### 2.1 Web stack: Rust or Python (open)
+### 2.1 Web stack ✅ Rust + SvelteKit
 
-| | Rust: Axum + sqlx + askama | Python: Django |
-|---|---|---|
-| Admin pages | Build ourselves (user list, invite, deactivate, settings — small) | Built in |
-| Sign-in | `openidconnect` (Google), email codes, `webauthn-rs` (passkeys), `tower-sessions` — assembled by us | `django-allauth`, mostly configuration |
-| Database | `sqlx`: SQL checked against the schema at compile time | Django ORM + migrations |
-| Safety | Memory-safe, strongly typed; many bugs caught at compile time | Mature, well-audited framework defaults |
-| Heroku | Community buildpack or container deploy; tiny memory use | First-class support |
-| relay on the Pi | Single static binary, very small | Python container |
-| Effort to MVP | Higher (≈ +1 phase of work for auth/admin) | Lower |
-| User preference | Preferred (learning Rust) | Disliked |
+| Concern | Choice |
+|---|---|
+| HTTP server | **Axum** (tokio) |
+| Sessions | **tower-sessions**, server-side sessions in Postgres; secure, HttpOnly, SameSite cookies |
+| Login state & permissions | **axum-login** (login-required / role guards) |
+| Google sign-in | **openidconnect** crate (OIDC with PKCE) |
+| Email sign-in codes | small in-house module (random 6–8 digit code, 10-min expiry, rate-limited) |
+| Passkeys / admin MFA | **webauthn-rs** |
+| Database | **sqlx** + Postgres; queries checked against the schema at compile time; sqlx migrations |
+| Front end | **SvelteKit** (TypeScript) built as a static app (`adapter-static`), served by Axum from the same origin as its JSON API — so auth is plain cookies, no tokens in the browser, no CORS |
+| Admin pages | **hand-written** (user list sorted by `last_active_at`, invite, deactivate, device tokens, settings) as Svelte pages over admin-only API routes |
+| relay (Pi) | Rust too: one small static binary in a container |
+
+Why hand-write the admin pages: the Rust "Django-admin-like" crates
+(`axum-admin` 0.1, `adminx`, `rustango`) are young, and we need only four or five
+screens — less code to review than adopting a framework that can touch
+everything. Loco (Rails-like, on Axum) was considered; its built-in auth is
+token-based and it has no admin, so it buys little here.
+
+Cost of Rust vs. Django, acknowledged: we write the sign-in glue and admin
+screens ourselves (a few hundred lines each) instead of configuring them.
+
+Heroku deploy: a container image (`heroku.yml`) or a community Rust
+buildpack — to be settled in phase 1.
 
 ## 3. Security model
 
@@ -119,7 +133,7 @@ commands.
 |---|---|---|
 | **Cloud app** (Heroku, DB) | See footage, users' emails; start live view; send alerts | Reach the home network. The Pi accepts no inbound connections and only executes allowlisted commands. |
 | **R2 credentials** | Read/delete stored media | Reach the home network. |
-| **The Pi's device token** (stolen from the Pi) | Upload junk events/media for that camera | Read other data, act as a user or admin. Token is revocable. |
+| **The Pi's device token** (stolen from the Pi) | Upload junk visits/media for that camera | Read other data, act as a user or admin. Token is revocable. |
 | **The Pi itself** | Everything on the LAN the Pi can reach | — this is why the Pi is hardened and runs nothing that accepts input from the internet. |
 | **The camera** (old XM firmware, known-weak class of device) | Attack other LAN devices | Phone home or be reached from the internet — it has no internet access. |
 | **A viewer's account** | See footage, create share links | Admin functions (role-checked), anything on the Pi. |
@@ -135,13 +149,20 @@ commands.
 - Camera: on an isolated network with no internet access (Deco IoT network,
   or a Pi-hosted camera-only Wi-Fi — to be decided on site). Fixed IP via DHCP
   reservation.
+- Camera power watchdog: the camera sometimes hangs until power-cycled. A
+  locally controllable smart plug (no vendor cloud), at the nest-box end of
+  the extension cord and weather-protected like the camera's adapter, lets the
+  Pi power-cycle it automatically after ~5 minutes unreachable. The plug sits
+  on the isolated camera network too.
 - relay: runs unprivileged in its own container, holds only its **device
   token** — a long random secret that identifies it to the app as "the
   uploader for camera X" (like an API key; stored only hashed in the cloud,
   revocable from admin) — and nothing else. Commands from the cloud arrive
   over the relay's own outbound WebSocket and are a fixed enum (`live_start`,
-  `live_stop`), with parameters validated and bounded (e.g. live view
-  auto-stops after 10 minutes without a renewed request).
+  `live_stop`; later `upload_range` for "Get the full video", §5.1), with
+  parameters validated and bounded (e.g. live view auto-stops after 10 minutes
+  without a renewed request; `upload_range` is limited to one camera, a past
+  time range, and a maximum size).
 
 **Cloud side**
 - HTTPS everywhere (Heroku ACM), HSTS, secure/HttpOnly/SameSite cookies, CSRF,
@@ -162,8 +183,8 @@ commands.
   invite email. There is no public sign-up.
 - **Sign-in**: "Sign in with Google", or a **one-time code by email** for people
   without Google accounts. (Sign in with Apple needs a paid Apple Developer
-  account, $99/yr — out of budget for now.) Passkeys can be added later
-  (`webauthn-rs` or `django-allauth`, per §2.1).
+  account, $99/yr — out of budget for now.) Passkeys via `webauthn-rs`
+  (required as admin MFA; optional for everyone else).
 - **Roles**: `admin` (manage users, cameras, public page, device tokens) and
   `viewer`. All viewers see all cameras of the installation (one camera today);
   the data model leaves room for per-camera access.
@@ -171,21 +192,39 @@ commands.
 
 ## 5. Key flows
 
-### 5.1 Activity → clip in the cloud
+### 5.1 Activity → a "visit" in the cloud ✅
 
-1. Frigate detects activity on the sub stream and records the main stream for
-   it, with **5 s pre-roll and 10 s post-roll** ✅. Clips sent to the cloud are
-   **capped at 1 minute** ✅ (a long visit — e.g. a roosting owl — becomes
-   a first clip plus a note in the portal, not hours of video).
-2. The relay polls Frigate's review API; when an activity item **ends**, it
-   fetches the clip (MP4, H.264 — plays in every browser) and a snapshot.
-3. The relay asks the app for presigned upload URLs, `PUT`s clip and still
-   straight to R2, then calls `POST /api/device/events` with metadata (camera,
-   start/end, label, score, sizes, object keys).
-4. The app stores the event and triggers alerting (5.2).
+Frigate detects activity on the sub stream and records the main stream for
+it. The relay groups activity into **visits**: activity separated by gaps of
+less than ~2 minutes is one visit (so a roosting owl that shifts occasionally
+is one visit, not dozens).
+
+For each visit the cloud receives:
+
+| Media | What | Size (1080p) |
+|---|---|---|
+| **Arrival clip** | first minute of the visit, incl. **5 s pre-roll** | ≤ ~40 MB |
+| **Departure clip** | last minute, incl. **10 s post-roll** (omitted if the visit is under a minute — the arrival clip already covers it) | ≤ ~40 MB |
+| **Stills** | one at arrival, then one every 5 minutes | ~0.3 MB each |
+
+Clips are **capped at 1 minute** ✅. Example — a 30-minute owl visit: 2
+one-minute clips (~75 MB) + ~6 stills, shown in the portal as "Visit
+9:42–10:12 pm". The Pi keeps the full recording locally (§5.6).
+
+Later: a **"Get the full video"** button asks the Pi (via `upload_range` over
+its WebSocket) to upload a bounded time range on demand.
+
+Steps:
+1. The relay polls Frigate's review API, tracking open visits.
+2. At arrival + 1 min it uploads the arrival clip and first still (so alerts
+   go out promptly); it adds stills while the visit lasts; when the visit
+   ends it uploads the departure clip.
+3. Each upload: the relay asks the app for a presigned URL, `PUT`s straight to
+   R2, then reports the object to `POST /api/device/media`.
+4. The app creates/updates the visit and triggers alerting (5.2) on arrival.
 
 The relay keeps a small on-disk queue so uploads survive network outages and
-restarts; events are idempotent by Frigate's ID.
+restarts; uploads are idempotent (keyed by visit + media kind + timestamp).
 
 ### 5.2 Alerts ✅
 
@@ -193,9 +232,9 @@ restarts; events are idempotent by Frigate's ID.
   **email**, each on/off per user.
 - **Rate limit: at most one alert per user per camera per rolling 24 hours**
   (default; admin-configurable later; per-user config is post-MVP).
-- An alert reads e.g. *"Bird activity at Owl Box — 9:42 pm"* and links to
-  that clip. Throttled events still appear in the portal; the next alert says
-  *"…and 6 more since your last alert."* (So an owl after a starling is
+- One alert per **visit**, at most. It reads e.g. *"Activity at Owl Box —
+  9:42 pm"* and links to that visit. Throttled visits still appear in the
+  portal; the next alert says *"…and 6 more since your last alert."* (So an owl after a starling is
   never lost, just not separately announced.)
 - Links carry no access secrets; opening one requires signing in.
 - iPhone note: web push works on iOS only after the person adds the site to
@@ -203,8 +242,9 @@ restarts; events are idempotent by Frigate's ID.
 
 ### 5.3 Viewing
 
-- Portal home: newest activity first (still + time + duration), filter by
-  date; tap for the clip. Clips and stills come from R2 via signed URLs.
+- Portal home: newest visit first (still + time span + duration), filter by
+  date; tap for the visit's clips and stills. Media comes from R2 via signed
+  URLs.
 - Every clip and still has a **Download** button.
 
 ### 5.4 Sharing ✅
@@ -248,10 +288,12 @@ restarts; events are idempotent by Frigate's ID.
   ✅; pinned items never get evicted. Pinned items count toward the budget;
   if pins alone exceed it, the app warns admins rather than deleting.
 - **Pi**: keeps its own local history on the USB drive, capped **by size, not
-  days** ✅. Frigate itself retains by days, but deletes the oldest recordings
-  when its disk runs low — so recordings get their own partition sized to the
-  cap, and Frigate's low-space cleanup does oldest-first eviction. Size to be
-  settled (5 GB holds only ~2 hours of 1080p activity at ~37 MB/min).
+  days** ✅: a **100 GB ext4 partition** on the Seagate drive (≈ 45 hours of
+  1080p activity at ~37 MB/min). Frigate itself retains by days, but deletes
+  the oldest recordings when its disk runs low, so a dedicated partition sized
+  to the cap gives oldest-first eviction. The drive's existing Mac (HFS+)
+  partition — 297 GB used of 466 GB — is kept: it gets shrunk to ~366 GB on a
+  Mac (Linux can't resize HFS+), then the Pi formats the freed space.
 - Live segments in R2 are deleted after 1 hour (R2 lifecycle rule).
 
 ### 5.7 Public live page (later)
@@ -276,9 +318,10 @@ alert_pref(user_id, camera_id, push_enabled_at, email_enabled_at, last_alert_at,
 push_subscription(id, user_id, endpoint, keys, created_at)
 camera(id, name, slug, public_live_enabled_at, timezone)
 device_token(id, camera_id, token_hash, created_at, revoked_at, last_seen_at)
-event(id, camera_id, frigate_id UNIQUE, label, score, started_at, ended_at,
-      clip_key, still_key, clip_bytes, still_bytes, pinned_by_user_id, pinned_at)
-share_link(code UNIQUE, event_id, kind[clip|still], created_by_user_id,
+visit(id, camera_id, started_at, ended_at, label, alerted_at)
+media(id, visit_id, kind[arrival_clip|departure_clip|still], object_key, bytes,
+      captured_at, pinned_by_user_id, pinned_at)
+share_link(code UNIQUE, media_id, created_by_user_id,
            created_at, expires_at, revoked_at, view_count)
 live_session(camera_id, requested_until, started_at)  -- drives live_start/stop
 audit_log(id, actor_user_id, action, target, details, created_at)
@@ -303,8 +346,8 @@ launch.
 ## 8. Repository layout (proposed)
 
 ```
-pi/          docker-compose.yml, config/ (Frigate), relay/ (service)
-cloud/       web app, Procfile, app.json (Heroku "Deploy" button)
+pi/          docker-compose.yml, config/ (Frigate), relay/ (Rust crate)
+cloud/       Rust (Axum) crate, web/ (SvelteKit app), app.json (Heroku "Deploy" button)
 docs/        design.md (this), setup-pi.md, setup-cloud.md, security.md
 ```
 
@@ -314,10 +357,12 @@ walks them through the Pi.
 
 ## 9. Phases
 
-0. **Home setup** (needs site access): 27 W power supply, Ethernet, USB drive,
-   active cooler; Frigate → activity-only recording + CPU bird detection; DHCP
-   reservations; isolate the camera from the internet. *(Camera now streams
-   over DVRIP — done.)*
+0. **Home setup** (needs site access). Done: camera streams over DVRIP;
+   Pi on Ethernet with a 5 A supply (fan already fitted). To do: shrink the
+   Seagate's Mac partition and add the 100 GB recordings partition; Frigate →
+   activity-only recording with motion tuned for lighting changes; DHCP
+   reservations; isolate the camera from the internet; smart-plug power
+   watchdog.
 1. **Cloud skeleton**: web app on Heroku, Postgres, invite-only sign-in
    (Google + email code), admin MFA, security headers. No video yet.
 2. **Clips**: relay + device API + R2; portal lists clips and stills;
@@ -330,21 +375,27 @@ walks them through the Pi.
 
 Phases 1 and (most of) 2 can be built and tested with no access to the home
 hardware: the relay can be developed against recorded sample clips.
+Rust work adds to phase 1 (sign-in glue) and phase 2 (admin screens).
 
 ## Open questions
 
-1. **Web stack**: Rust (Axum) or Python (Django)? See §2.1.
-2. **Pi recording cap**: how many GB of the USB drive? (5 GB ≈ 2 h of 1080p
-   activity.)
-3. **Detection**: how well a COCO-trained `bird` detector sees an owl from
+1. **Detection**: how well a COCO-trained `bird` detector sees an owl from
    directly above, in IR at night, is unknown — likely poorly. Plan: start
    with tuned motion-based recording (the box interior is static, so most
    motion is an animal), collect real footage, then decide on detection or a
    custom-trained model.
+2. **Smart plug model** for the power watchdog: must be weather-protectable
+   at the nest-box end and controllable locally without a vendor cloud.
+3. **Heroku deploy method** for the Rust app: container vs. buildpack.
 
-### Decided 2026-11-26
+### Decided
 
-No custom domain; any user may pin; 5 s pre-roll / 10 s post-roll; 1-minute
-clip cap; Pi storage capped by size; stills share links default 7 days;
-`*_id` foreign keys and timestamps-over-booleans in the schema; Pi-initiated
-WebSocket for cloud→Pi commands.
+- 2026-11-26: no custom domain; any user may pin; 5 s pre-roll / 10 s
+  post-roll; 1-minute clip cap; Pi storage capped by size; stills share links
+  default 7 days; `*_id` foreign keys and timestamps-over-booleans in the
+  schema; Pi-initiated WebSocket for cloud→Pi commands; Postgres.
+- 2026-11-27: Rust (Axum, axum-login, openidconnect, webauthn-rs, sqlx) +
+  SvelteKit static front end; hand-written admin screens; visits with arrival
+  and departure clips plus periodic stills; 100 GB recordings partition on the
+  Seagate drive alongside its existing Mac partition; smart-plug power
+  watchdog.
