@@ -15,7 +15,9 @@ services:
       # Whole directory, writable: Frigate keeps its database, model cache and
       # config migrations here, so they survive container restarts.
       - ./config:/config
-      - ./storage:/media/frigate
+      # Recordings/snapshots. On the Pi this is the dedicated recordings
+      # partition (set FRIGATE_MEDIA_DIR in .env); defaults to ./storage.
+      - ${FRIGATE_MEDIA_DIR:-./storage}:/media/frigate
       - type: tmpfs
         target: /tmp/cache
         tmpfs:

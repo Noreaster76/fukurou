@@ -70,8 +70,10 @@ docker compose up -d
 - Stop: `docker compose down`
 - Logs: `docker logs -f frigate-nest-box`
 
-Recordings land in `./storage` (gitignored). Retention is **1 day** continuous
-(~6 GB/day at 1080p); adjust `record` in `config/config.yml`.
+Recordings land in `./storage` (gitignored) unless `FRIGATE_MEDIA_DIR` says
+otherwise. Frigate records **only on motion/objects**, and retention is
+limited by disk size rather than days: on the Pi, recordings get a dedicated
+100 GB partition and Frigate deletes the oldest when it runs low.
 
 ## Configuration notes
 

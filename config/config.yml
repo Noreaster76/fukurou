@@ -26,6 +26,10 @@ go2rtc:
     owl_box_sub:
       - dvrip://admin:{FRIGATE_OWL_BOX_PASSWORD}@{FRIGATE_OWL_BOX_HOST}:34567?channel=0&subtype=1
 
+# Recording policy: record only when there is motion or a detected object,
+# kept "forever" by days -- the real limit is disk size. Recordings live on a
+# dedicated 100 GB partition (FRIGATE_MEDIA_DIR); when it runs low, Frigate's
+# storage maintainer deletes the oldest recordings first.
 cameras:
   owl_box:
     ffmpeg:
@@ -35,23 +39,40 @@ cameras:
           input_args: preset-rtsp-restream
           roles:
             - record
-        # Low-res sub-stream reserved for detection. Detection is off for now
-        # (see detect.enabled below); the role stays wired so turning it on is
-        # a one-line change.
+        # Motion and object detection run on the low-res sub stream.
         - path: rtsp://127.0.0.1:8554/owl_box_sub
           input_args: preset-rtsp-restream
           roles:
             - detect
     detect:
-      enabled: false
+      enabled: true
       width: 800
       height: 448
+      fps: 5
+    # The stock model has no owl or generic "animal" class, and sees owls from
+    # above poorly; motion inside the static box is the main signal. Objects
+    # are tracked anyway to label clips and to collect data for later tuning.
+    objects:
+      track:
+        - bird
+        - cat
+        - dog
     record:
       enabled: true
       continuous:
-        days: 1
-      motion:
         days: 0
+      motion:
+        days: 365
+      alerts:
+        pre_capture: 5
+        post_capture: 10
+        retain:
+          days: 365
+      detections:
+        pre_capture: 5
+        post_capture: 10
+        retain:
+          days: 365
     snapshots:
       enabled: true
 

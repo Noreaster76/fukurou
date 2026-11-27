@@ -96,8 +96,10 @@ See `.env.example` for the format. (The value is in my password manager.)
   - **Browser playback:** solved at the source (camera now sends H.264).
   - **Pi:** Raspberry Pi 5, 16 GB RAM, Raspberry Pi OS (Debian 13). Hardened:
     SSH keys-only, VNC/rpcbind off, unattended security upgrades, OpenClaw
-    removed, Tailscale installed (`fukurou-pi`). Next: wired Ethernet and a
-    USB drive or NVMe SSD for recordings.
+    removed, Tailscale installed (`fukurou-pi`). On wired Ethernet with a
+    5 A supply. Recordings on a 100 GB ext4 partition of the Seagate USB drive
+    (`/mnt/fukurou`, label `fukurou`; the drive's Mac partition is kept), with
+    `FRIGATE_MEDIA_DIR=/mnt/fukurou/frigate` in the Pi's `.env`.
 
 ## To get running on the new machine
 
