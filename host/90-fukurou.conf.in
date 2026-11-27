@@ -1,0 +1,5 @@
+# fukurou: never tell LAN devices (the camera) to bypass this Pi by sending
+# ICMP redirects toward the real router.
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.@PI_IFACE@.send_redirects = 0

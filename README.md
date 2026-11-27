@@ -52,6 +52,27 @@ The camera's single NIC has been seen holding **two** DHCP leases at once. Add
 a **DHCP reservation** on the TP-Link Deco so it stays on one fixed IP, then
 `.env` never needs an IP edit.
 
+## Keeping the camera off the internet
+
+The camera is cheap Xiongmai firmware that phones home (XMeye cloud,
+`secu100.net`), so it is cut off from the internet without any router
+features:
+
+- **On the camera** (set over DVRIP with `tools/dvrip.py`): default gateway,
+  DNS and NTP all point at the Pi, and the XMeye cloud connection
+  (`NetWork.Nat`) is disabled.
+- **On the Pi** (`sudo host/install.sh`): nftables drops everything the camera
+  sends off the LAN, logging a sample (`journalctl -k | grep
+  fukurou-camera-egress`); ICMP redirects are off so the camera is never told
+  to bypass the Pi; chrony serves time to the camera only.
+- **The ping trick:** when the camera's "am I online?" pings (to
+  114.114.114.114, 8.8.8.8, 180.76.76.76) fail, the firmware stops answering
+  on the LAN until power-cycled. The Pi therefore answers those pings itself.
+
+Consequence: the Green Backyard app can no longer reach the camera from
+outside the home. To undo, point the camera's gateway back at the router and
+re-enable `NetWork.Nat` with `tools/dvrip.py patch`.
+
 ## Running (local trial on macOS + Docker Desktop)
 
 > ⚠️ This is a **trial** deployment on a laptop. A laptop sleeps/moves, and on

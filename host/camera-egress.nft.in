@@ -1,0 +1,26 @@
+# fukurou: the camera (@CAMERA_IP@) uses this Pi (@PI_IP@) as its default
+# gateway, so everything it sends off the LAN arrives here.
+#
+# Its firmware stops answering on the LAN when its "am I online?" pings fail
+# (it pings 114.114.114.114, 8.8.8.8 and 180.76.76.76), and stays that way
+# until power-cycled. So this Pi answers those pings itself (DNAT to the Pi),
+# and drops everything else the camera sends off the LAN, logging a sample.
+#
+# Rendered from host/camera-egress.nft.in by host/install.sh and loaded by
+# fukurou-camera-firewall.service. It touches only its own table, so it never
+# disturbs Docker's or Tailscale's rules.
+table inet fukurou_camera
+delete table inet fukurou_camera
+table inet fukurou_camera {
+  set lan { type ipv4_addr; flags interval; elements = { @LAN_CIDR@, 224.0.0.0/4, 255.255.255.255 } }
+  chain prerouting_filter {
+    type filter hook prerouting priority -150; policy accept;
+    ip saddr @CAMERA_IP@ ip daddr != @lan icmp type echo-request accept
+    ip saddr @CAMERA_IP@ ip daddr != @lan limit rate 10/minute log prefix "fukurou-camera-egress: " level info
+    ip saddr @CAMERA_IP@ ip daddr != @lan counter drop
+  }
+  chain prerouting_nat {
+    type nat hook prerouting priority -100; policy accept;
+    ip saddr @CAMERA_IP@ ip daddr != @lan icmp type echo-request counter dnat ip to @PI_IP@
+  }
+}

@@ -1,0 +1,2 @@
+# fukurou: serve time to the nest-box camera only (it has no internet access).
+allow @CAMERA_IP@

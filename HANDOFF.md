@@ -74,6 +74,23 @@ See `.env.example` for the format. (The value is in my password manager.)
    occasional crashes might drop further once the camera is cut off from the
    internet (it may be retrying its vendor cloud) — untested.
 
+## Camera isolation (2026-11-26)
+
+The Deco has no feature that blocks one device's internet while keeping it on
+the LAN (IoT Network doesn't isolate, Device Isolation and Guest Network block
+the LAN instead, Parental Controls can't block 24 h). So the camera is
+configured, over DVRIP (`tools/dvrip.py`), to use the Pi as its gateway, DNS
+and NTP server, with the XMeye cloud off; the Pi drops its internet traffic
+(`host/install.sh`). Its firmware goes deaf on the LAN when its connectivity
+pings fail, so the Pi answers those pings. Before this, the Deco's firmware
+update and the Parental Controls experiment each left the camera hung until
+power-cycled — likely the same "no internet → deaf" behavior.
+
+Camera config notes: the Wi-Fi interface uses DHCP (the gateway setting still
+sticks); the unused wired interface has its own static address on the same
+subnet, which the camera also answers on (the old "two leases" mystery). DVRIP config writes that return `Ret=603` need a camera
+restart, and this camera's soft restarts tend to hang — expect to power-cycle.
+
 ## Where I left off / what's next
 
 - Validated only as a **trial on a Mac laptop** (Docker Desktop). A laptop

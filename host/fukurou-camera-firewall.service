@@ -1,0 +1,13 @@
+[Unit]
+Description=fukurou: block the nest-box camera from reaching the internet via this Pi
+After=network-pre.target
+Before=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/fukurou/camera-egress.nft
+ExecStop=/usr/sbin/nft delete table inet fukurou_camera
+
+[Install]
+WantedBy=multi-user.target
