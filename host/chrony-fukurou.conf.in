@@ -1,2 +1,4 @@
-# fukurou: serve time to the nest-box camera only (it has no internet access).
+# fukurou: serve time to the nest-box camera and its smart plug only (they have
+# no internet access).
 allow @CAMERA_IP@
+allow @PLUG_IP@

@@ -1,0 +1,7 @@
+[Unit]
+Description=fukurou: power-cycle the nest-box camera via its smart plug if it has hung
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fukurou-camera-watchdog

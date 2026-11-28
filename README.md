@@ -69,6 +69,14 @@ features:
   114.114.114.114, 8.8.8.8, 180.76.76.76) fail, the firmware stops answering
   on the LAN until power-cycled. The Pi therefore answers those pings itself.
 
+The camera's **Shelly smart plug** (Shelly Plug US Gen4, local-only: cloud,
+Bluetooth, Matter and its setup AP off; password-protected; fixed IP with the
+Pi as gateway) is isolated the same way. A **watchdog** on the Pi
+(`fukurou-camera-watchdog.timer`, every minute) power-cycles the camera through
+the plug if it hasn't answered for 5 minutes — "off, back on after 10 s", with
+the back-on timer running on the plug itself — backing off between attempts.
+Its log: `journalctl -u fukurou-camera-watchdog`.
+
 Consequence: the Green Backyard app can no longer reach the camera from
 outside the home. To undo, point the camera's gateway back at the router and
 re-enable `NetWork.Nat` with `tools/dvrip.py patch`.
